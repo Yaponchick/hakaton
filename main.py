@@ -7,6 +7,7 @@ from matplotlib.widgets import Button
 from math import radians, cos, sin, asin, sqrt
 from datetime import datetime, timezone
 import requests
+import geopandas as gpd
 try:
     import mplcursors
     MPLCURSORS_AVAILABLE = True
@@ -121,9 +122,22 @@ def get_osm_stops(min_lat, min_lon, max_lat, max_lon):
         print(f"[OSM] Неожиданная ошибка при обработке ответа OSM: {e}")
     return []
 
-def plot_tracks_with_stops(all_tracks_data, route_data):
+def plot_tracks_with_stops(all_tracks_data, route_data, uds_path=None):
     fig, ax = plt.subplots(figsize=(12, 10))
     plt.subplots_adjust(left=0.08, right=0.78, top=0.95, bottom=0.1)
+
+    if uds_path:
+        try:
+            # Загрузка дорожной сети
+            UDS = gpd.read_file(uds_path)
+            print("SHP-файл успешно загружен!")
+            # Перевод в EPSG:4326 (широта/долгота)
+            UDS = UDS.to_crs(epsg=4326)
+            # Отображение дорожной сети
+            UDS.plot(ax=ax, edgecolor='grey', facecolor='none', linewidth=0.5, label='Дорожная сеть')
+        except Exception as e:
+            print(f"Ошибка при чтении SHP-файла: {e}")
+
     line_elements_map = {}
     visibility_state = {}
     has_data_to_plot = False
@@ -381,16 +395,26 @@ def plot_tracks_with_stops(all_tracks_data, route_data):
     ax.grid(True)
     plt.show()
 
+
 if __name__ == "__main__":
+    import os
+    import geopandas as gpd  # Убедитесь, что библиотека импортирована
+
     gpx_directory = "tracks"
     excel_file = "Результаты треков ЛИМБ-21-1.xlsx"
+
+    uds_path = 'Graph_Irkutsk_link/Graph_Irkutsk_link.SHP'
+
     if not os.path.isdir(gpx_directory):
         print(f"Ошибка: Директория '{gpx_directory}' не найдена.")
         exit()
+
     print(f"Загрузка данных из Excel: {excel_file}")
     route_data = load_route_data(excel_file)
+
     print(f"Поиск GPX файлов в директории: {gpx_directory}")
     gpx_files = [os.path.join(gpx_directory, f) for f in os.listdir(gpx_directory) if f.lower().endswith('.gpx')]
+
     if not gpx_files:
         print(f"В директории '{gpx_directory}' не найдено ни одного GPX файла (*.gpx).")
     else:
@@ -405,8 +429,10 @@ if __name__ == "__main__":
                     'coords': points_data
                 })
                 processed_files += 1
-        print(f"Обработка файлов завершена. Успешно обработано (с точками времени): {processed_files} из {len(gpx_files)}.")
+        print(
+            f"Обработка файлов завершена. Успешно обработано (с точками времени): {processed_files} из {len(gpx_files)}.")
+
         if all_tracks_data['tracks']:
-            plot_tracks_with_stops(all_tracks_data, route_data)
+            plot_tracks_with_stops(all_tracks_data, route_data, uds_path=uds_path)
         else:
             print("Нет данных треков (с точками времени) для отображения после обработки файлов.")
